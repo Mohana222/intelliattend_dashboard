@@ -1,0 +1,5 @@
+{
+  "name": "IntelliAttend Dashboard",
+  "description": "A high-performance attendance management and analysis dashboard featuring real-time data visualization, CSV exporting, and AI-powered workforce insights using Gemini.",
+  "requestFramePermissions": []
+}
