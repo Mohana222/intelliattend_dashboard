@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { INITIAL_DATA } from './mockData.ts';
-import { DataRecord, ModuleType, SalesSection, SheetCollection } from './types.ts';
-import SummaryCard from './components/SummaryCard.tsx';
+import { INITIAL_DATA } from './mockData';
+import { DataRecord, ModuleType, SalesSection, SheetCollection } from './types';
+import SummaryCard from './components/SummaryCard';
 
 const Icons = {
   Attendance: <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
@@ -148,7 +147,9 @@ export default function App() {
       const matchesSearch = Object.values(item).some(val => String(val).toLowerCase().includes(filterText.toLowerCase()));
       if (!matchesSearch) return false;
       
-      return Object.entries(activeFilters).every(([col, selectedValues]) => {
+      // Fix: Use Object.keys to iterate over activeFilters to ensure TypeScript correctly identifies selectedValues as string[]
+      return Object.keys(activeFilters).every(col => {
+        const selectedValues = activeFilters[col];
         if (!selectedValues || selectedValues.length === 0) return true;
         
         let cellVal = item[col];

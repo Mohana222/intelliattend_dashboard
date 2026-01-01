@@ -5,7 +5,7 @@ export const getSmartOverview = async (data: DataRecord[], contextTitle: string)
   if (!data.length) return "No data provided for analysis.";
   
   try {
-    // Initializing the Gemini API client using the environment variable directly.
+    // Fix: Initializing the Gemini API client using the environment variable directly as per guidelines.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Selecting a sample of records to stay within context window while providing enough information.
