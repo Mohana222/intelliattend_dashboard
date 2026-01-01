@@ -19,7 +19,8 @@ const Icons = {
   Logout: <svg className="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
   Check: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>,
   Eye: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
-  EyeOff: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88L1 1m11 11l9 9" /></svg>
+  EyeOff: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88L1 1m11 11l9 9" /></svg>,
+  Menu: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
 };
 
 const STORAGE_KEY = 'intellidata_v2_final';
@@ -81,6 +82,8 @@ export default function App() {
   const [sheetSearchQuery, setSheetSearchQuery] = useState("");
   const [editingSheetKey, setEditingSheetKey] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
@@ -147,7 +150,6 @@ export default function App() {
       const matchesSearch = Object.values(item).some(val => String(val).toLowerCase().includes(filterText.toLowerCase()));
       if (!matchesSearch) return false;
       
-      // Fix: Use Object.keys to iterate over activeFilters to ensure TypeScript correctly identifies selectedValues as string[]
       return Object.keys(activeFilters).every(col => {
         const selectedValues = activeFilters[col];
         if (!selectedValues || selectedValues.length === 0) return true;
@@ -328,9 +330,9 @@ export default function App() {
         {loginModalContent && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setLoginModalContent(null)}></div>
-            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden">
+            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] p-6 md:p-10 shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden">
               <div className="flex items-center justify-between mb-8">
-                <h4 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight">
                   {loginModalContent === 'about' ? 'About IntelliData' : 'Security & Privacy'}
                 </h4>
                 <button onClick={() => setLoginModalContent(null)} className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400 hover:text-slate-900">
@@ -342,9 +344,9 @@ export default function App() {
                   <>
                     <p>IntelliData is an elite enterprise-grade data orchestration platform. We bridge the gap between static spreadsheet reporting and dynamic strategic intelligence.</p>
                     <p>By leveraging advanced analytics tools, we empower decision-makers to extract nuanced trends and actionable insights from raw data in real-time.</p>
-                    <div className="pt-4 border-t border-slate-100 flex gap-4">
-                      <div className="flex-1 p-4 bg-indigo-50 rounded-2xl text-indigo-700 font-bold text-xs uppercase tracking-widest">Democratizing Analytics</div>
-                      <div className="flex-1 p-4 bg-indigo-50 rounded-2xl text-indigo-700 font-bold text-xs uppercase tracking-widest">High-Performance Stack</div>
+                    <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4">
+                      <div className="flex-1 p-4 bg-indigo-50 rounded-2xl text-indigo-700 font-bold text-xs uppercase tracking-widest text-center">Democratizing Analytics</div>
+                      <div className="flex-1 p-4 bg-indigo-50 rounded-2xl text-indigo-700 font-bold text-xs uppercase tracking-widest text-center">High-Performance Stack</div>
                     </div>
                   </>
                 ) : (
@@ -368,17 +370,17 @@ export default function App() {
           </div>
         )}
 
-        <div className="lg:w-1/3 h-full bg-gradient-to-br from-indigo-900 via-indigo-800 to-violet-900 relative flex flex-col items-start justify-center p-8 lg:p-16 shrink-0">
+        <div className="h-64 lg:h-full lg:w-1/3 bg-gradient-to-br from-indigo-900 via-indigo-800 to-violet-900 relative flex flex-col items-center lg:items-start justify-center p-8 lg:p-16 shrink-0">
           <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
              <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-white rounded-full blur-[100px]"></div>
              <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] bg-indigo-400 rounded-full blur-[120px]"></div>
           </div>
-          <div className="relative z-10 space-y-6 max-w-sm">
-            <div className="flex items-center gap-4">
+          <div className="relative z-10 space-y-4 md:space-y-6 max-w-sm text-center lg:text-left">
+            <div className="flex flex-col lg:flex-row items-center gap-4">
               <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-indigo-900 shadow-xl font-extrabold text-2xl">I</div>
               <h1 className="text-3xl font-extrabold text-white tracking-tighter">IntelliData</h1>
             </div>
-            <p className="text-base font-semibold text-indigo-100/80 leading-snug tracking-tight">Turn your complex datasets into clear, actionable intelligence with one click.</p>
+            <p className="text-sm md:text-base font-semibold text-indigo-100/80 leading-snug tracking-tight">Turn your complex datasets into clear, actionable intelligence with one click.</p>
           </div>
         </div>
         <div className="flex-1 h-full bg-white flex flex-col items-center justify-center p-6 lg:p-12 relative overflow-y-auto">
@@ -421,28 +423,42 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 overflow-hidden relative">
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv, .xlsx, .xls" className="hidden" />
 
-      <aside className="w-72 bg-white border-r border-gray-200 flex flex-col h-full shadow-xl z-20">
-        <div className="p-4 border-b border-gray-100 flex items-center gap-3 shrink-0">
-          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg font-bold text-xs">I</div>
-          <span className="text-lg font-bold text-slate-900 tracking-tighter">IntelliData</span>
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-gray-200 flex flex-col h-full shadow-2xl lg:shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg font-bold text-xs">I</div>
+            <span className="text-lg font-bold text-slate-900 tracking-tighter">IntelliData</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+            {Icons.Close}
+          </button>
         </div>
 
         <div className="px-3 pt-4 space-y-2 shrink-0">
-          <button onClick={() => setActiveModule('ATTENDANCE')} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'ATTENDANCE' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
+          <button onClick={() => { setActiveModule('ATTENDANCE'); if(window.innerWidth < 1024) setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'ATTENDANCE' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
             {Icons.Attendance} <span className="text-xs uppercase tracking-wider">Attendance</span>
           </button>
           
           <div className="space-y-1">
-            <button onClick={() => setActiveModule('SALES')} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'SALES' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
+            <button onClick={() => { setActiveModule('SALES'); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'SALES' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
               {Icons.Sales} <span className="text-xs uppercase tracking-wider">Sales Ledger</span>
             </button>
             {activeModule === 'SALES' && (
               <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-indigo-100 pl-3 animate-in slide-in-from-top-1 duration-200">
                 {SalesSections.map(section => (
-                  <button key={section} onClick={() => setActiveSalesSection(section)} className={`w-full text-left p-1.5 rounded-lg text-[11px] transition-all flex items-center gap-2 ${activeSalesSection === section ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-400 hover:bg-gray-50 font-medium'}`}>
+                  <button key={section} onClick={() => { setActiveSalesSection(section); if(window.innerWidth < 1024) setIsSidebarOpen(false); }} className={`w-full text-left p-1.5 rounded-lg text-[11px] transition-all flex items-center gap-2 ${activeSalesSection === section ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-400 hover:bg-gray-50 font-medium'}`}>
                     <div className="w-1.5 h-1.5 rounded-full bg-current opacity-40"></div>
                     {section.replace(/-/g, ' ')}
                   </button>
@@ -479,7 +495,7 @@ export default function App() {
                     </div>
                     <span className={`text-[12px] truncate tracking-tight transition-colors ${selectedSheets.includes(sheet) ? 'text-indigo-700 font-semibold' : 'text-slate-600 font-medium group-hover:text-slate-900'}`}>{sheet}</span>
                   </div>
-                  <div className="hidden group-hover:flex items-center gap-0.5 pr-1">
+                  <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => startRenaming(sheet, e)} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all scale-75">{Icons.Edit}</button>
                     <button onClick={(e) => deleteSingleSheet(sheet, e)} className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all scale-75">{Icons.Trash}</button>
                   </div>
@@ -506,52 +522,69 @@ export default function App() {
         </div>
       </aside>
 
+      {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-gray-50 flex flex-col">
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-4 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tighter leading-none">{currentCategory.replace(/-/g, ' ')}</h1>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">{selectedSheets.length} active ledgers</p>
-          </div>
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 md:px-8 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
-            <div className="relative group">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"
+            >
+              {Icons.Menu}
+            </button>
+            <div>
+              <h1 className="text-lg md:text-xl font-bold text-slate-900 uppercase tracking-tighter leading-none">{currentCategory.replace(/-/g, ' ')}</h1>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">{selectedSheets.length} active ledgers</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="relative group hidden md:block">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-300 pointer-events-none group-focus-within:text-indigo-500 transition-colors">{Icons.Search}</div>
-              <input type="text" placeholder="Global Ledger Search..." className="pl-10 pr-4 py-2.5 border border-slate-100 rounded-2xl text-xs font-semibold focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-300 w-64 bg-slate-50 outline-none transition-all placeholder:text-slate-300" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
+              <input type="text" placeholder="Search..." className="pl-10 pr-4 py-2.5 border border-slate-100 rounded-2xl text-xs font-semibold focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-300 w-48 md:w-64 bg-slate-50 outline-none transition-all placeholder:text-slate-300" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
             </div>
             <button onClick={handleLogout} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Secure Logout">{Icons.Logout}</button>
           </div>
         </header>
 
-        <div className="p-8 space-y-8 flex-1">
+        {/* Search for mobile */}
+        <div className="px-4 py-2 md:hidden">
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-300 pointer-events-none group-focus-within:text-indigo-500 transition-colors">{Icons.Search}</div>
+            <input type="text" placeholder="Global Ledger Search..." className="w-full pl-10 pr-4 py-3 border border-slate-100 rounded-2xl text-xs font-semibold focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-300 bg-white outline-none transition-all placeholder:text-slate-300" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="p-4 md:p-8 space-y-6 md:space-y-8 flex-1">
           {filteredData.length === 0 && rawMergedData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-36 text-center bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100 shadow-sm">
-              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-200 mb-8 animate-pulse">{Icons.Upload}</div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">System Initialization Complete</h2>
+            <div className="flex flex-col items-center justify-center py-20 md:py-36 text-center bg-white rounded-[1.5rem] md:rounded-[2.5rem] border-4 border-dashed border-slate-100 shadow-sm px-4">
+              <div className="w-16 md:w-20 h-16 md:h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-200 mb-6 md:mb-8 animate-pulse">{Icons.Upload}</div>
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">System Initialization Complete</h2>
               <p className="text-slate-400 max-w-sm mx-auto mt-3 font-semibold text-xs leading-relaxed uppercase tracking-wider">Please feed the data engine by uploading corporate records via the sidebar action console.</p>
             </div>
           ) : (
             <>
               {activeModule !== 'ATTENDANCE' && Object.keys(totals).length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                   {Object.keys(totals).slice(0, 4).map(key => (
                     <SummaryCard key={key} title={`Aggregate ${key}`} value={totals[key].toLocaleString()} icon={<div className="font-bold text-[9px] tracking-tighter uppercase opacity-50">Total</div>} colorClass="bg-indigo-600 text-indigo-600" />
                   ))}
                 </div>
               )}
 
-              <div className="bg-white rounded-[2rem] border border-slate-100 shadow-2xl shadow-slate-200/30 flex flex-col min-h-[400px]">
-                <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/20 rounded-t-[2rem]">
-                  <h3 className="font-bold text-slate-900 text-lg tracking-tighter uppercase">Consolidated Master Ledger</h3>
+              <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-2xl shadow-slate-200/30 flex flex-col min-h-[300px] md:min-h-[400px]">
+                <div className="px-6 md:px-8 py-5 md:py-6 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50/20 rounded-t-[1.5rem] md:rounded-t-[2rem] gap-2">
+                  <h3 className="font-bold text-slate-900 text-sm md:text-lg tracking-tighter uppercase">Consolidated Master Ledger</h3>
                   <div className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-bold tracking-widest uppercase">{filteredData.length} records processed</div>
                 </div>
                 
-                <div className="overflow-auto max-h-[600px] flex-1">
+                <div className="overflow-auto max-h-[500px] md:max-h-[600px] flex-1 scrollbar-hide">
                   <table className="w-full text-left border-separate border-spacing-0">
                     <thead className="sticky top-0 z-20">
                       <tr className="bg-white text-slate-400 text-[9px] uppercase font-bold tracking-[0.2em]">
                         {headers.map(h => {
                           const isActive = activeFilters[h] && activeFilters[h].length > 0;
                           return (
-                            <th key={h} className="px-8 py-5 border-b border-slate-100 bg-white/95 backdrop-blur-sm whitespace-nowrap">
+                            <th key={h} className="px-6 md:px-8 py-4 md:py-5 border-b border-slate-100 bg-white/95 backdrop-blur-sm whitespace-nowrap">
                               <div className="flex items-center gap-2 relative">
                                 <span>{h}</span>
                                 <button 
@@ -562,7 +595,7 @@ export default function App() {
                                 </button>
                                 
                                 {openFilterCol === h && (
-                                  <div ref={filterDropdownRef} className="absolute top-full left-0 mt-4 w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-96 ring-1 ring-slate-100 animate-in zoom-in-95 slide-in-from-top-2 duration-200">
+                                  <div ref={filterDropdownRef} className="absolute top-full left-0 mt-4 w-64 md:w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-80 md:max-h-96 ring-1 ring-slate-100 animate-in zoom-in-95 slide-in-from-top-2 duration-200">
                                     <div className="p-4 border-b border-slate-50 bg-slate-50/30 space-y-3">
                                       <div className="flex items-center justify-between">
                                         <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Filter Column</h4>
@@ -583,7 +616,7 @@ export default function App() {
                                       </div>
                                     </div>
                                     
-                                    <div className="overflow-y-auto flex-1 p-2 space-y-0.5 max-h-64">
+                                    <div className="overflow-y-auto flex-1 p-2 space-y-0.5 max-h-48 md:max-h-64 scrollbar-hide">
                                       {uniqueValues[h]
                                         ?.filter(v => v.toLowerCase().includes(filterSearchQuery.toLowerCase()))
                                         .map(v => {
@@ -617,7 +650,7 @@ export default function App() {
                         })}
                       </tr>
                     </thead>
-                    <tbody className="text-[12px] divide-y divide-slate-50">
+                    <tbody className="text-[11px] md:text-[12px] divide-y divide-slate-50">
                       {filteredData.map((row, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/70 transition-colors group">
                           {headers.map(h => {
@@ -625,7 +658,7 @@ export default function App() {
                             let dVal = val;
                             if (typeof val === 'number' && (h.toLowerCase().includes('date') || (val > 35000 && val < 60000))) dVal = formatExcelDate(val);
                             else if (typeof val === 'number') dVal = val.toLocaleString();
-                            return <td key={h} className="px-8 py-4 text-slate-500 font-semibold whitespace-nowrap group-hover:text-slate-900 transition-colors">{dVal ?? "-"}</td>;
+                            return <td key={h} className="px-6 md:px-8 py-3 md:py-4 text-slate-500 font-semibold whitespace-nowrap group-hover:text-slate-900 transition-colors">{dVal ?? "-"}</td>;
                           })}
                         </tr>
                       ))}
@@ -640,16 +673,16 @@ export default function App() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-lg p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="flex justify-between items-start mb-8">
-              <h3 className="text-3xl font-bold text-slate-900 tracking-tighter">API Link</h3>
+          <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-md p-6 md:p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex justify-between items-start mb-6 md:mb-8">
+              <h3 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tighter">API Link</h3>
               <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-200 hover:text-slate-900 transition-colors">{Icons.Close}</button>
             </div>
-            <p className="text-xs text-slate-400 mb-8 font-semibold uppercase tracking-widest leading-relaxed">Establish a secure tunnel to your cloud-hosted Google Spreadsheet.</p>
-            <input type="text" placeholder="https://docs.google.com/spreadsheets/..." className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl mb-8 text-xs outline-none focus:ring-8 focus:ring-emerald-500/5 focus:border-emerald-300 font-semibold tracking-tight" value={gsheetUrl} onChange={(e) => setGsheetUrl(e.target.value)} />
-            <div className="flex gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-400 font-bold uppercase tracking-[0.2em] text-[9px]">Abort</button>
-              <button onClick={handleImportGoogleSheet} disabled={isFetchingGsheet || !gsheetUrl} className="flex-[2] px-6 py-4 bg-emerald-600 text-white font-bold uppercase tracking-[0.2em] text-[9px] rounded-xl shadow-2xl shadow-emerald-100 disabled:opacity-50 active:scale-[0.98] transition-all">
+            <p className="text-xs text-slate-400 mb-6 md:mb-8 font-semibold uppercase tracking-widest leading-relaxed">Establish a secure tunnel to your cloud-hosted Google Spreadsheet.</p>
+            <input type="text" placeholder="https://docs.google.com/spreadsheets/..." className="w-full p-4 md:p-5 bg-slate-50 border border-slate-100 rounded-2xl mb-6 md:mb-8 text-xs outline-none focus:ring-8 focus:ring-emerald-500/5 focus:border-emerald-300 font-semibold tracking-tight" value={gsheetUrl} onChange={(e) => setGsheetUrl(e.target.value)} />
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button onClick={() => setIsModalOpen(false)} className="py-4 text-slate-400 font-bold uppercase tracking-[0.2em] text-[9px] order-2 sm:order-1 sm:flex-1">Abort</button>
+              <button onClick={handleImportGoogleSheet} disabled={isFetchingGsheet || !gsheetUrl} className="px-6 py-4 bg-emerald-600 text-white font-bold uppercase tracking-[0.2em] text-[9px] rounded-xl shadow-2xl shadow-emerald-100 disabled:opacity-50 active:scale-[0.98] transition-all order-1 sm:order-2 sm:flex-[2]">
                 {isFetchingGsheet ? 'Processing...' : 'Establish Connection'}
               </button>
             </div>
