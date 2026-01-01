@@ -1,11 +1,19 @@
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { DataRecord } from "../types";
+
+// Declare process globally to satisfy TypeScript compiler during build (Vercel/Vite)
+declare const process: {
+  env: {
+    API_KEY: string;
+  };
+};
 
 export const getSmartOverview = async (data: DataRecord[], contextTitle: string): Promise<string> => {
   if (!data.length) return "No data provided for analysis.";
   
   try {
-    // Fix: Initializing the Gemini API client using the environment variable directly as per guidelines.
+    // Initializing the Gemini API client using the environment variable directly as per guidelines.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Selecting a sample of records to stay within context window while providing enough information.
