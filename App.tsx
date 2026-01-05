@@ -81,7 +81,6 @@ export default function App() {
     }
   });
 
-  // Ensure selectedSheets is empty by default when entering the dashboard
   const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
 
   const [filterText, setFilterText] = useState("");
@@ -128,7 +127,6 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('isLoggedIn', String(isLoggedIn)); }, [isLoggedIn]);
 
-  // Reset selected sheets and other temporary view state when module/section changes
   useEffect(() => {
     setSelectedSheets([]);
     setActiveFilters({});
@@ -146,6 +144,16 @@ export default function App() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleToggleFilterCol = (colName: string) => {
+    if (openFilterCol === colName) {
+      setOpenFilterCol(null);
+      setFilterSearchQuery("");
+    } else {
+      setOpenFilterCol(colName);
+      setFilterSearchQuery(""); // Always clear search when opening a new column filter
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -525,14 +533,19 @@ export default function App() {
                           <th key={h} className="px-8 py-5 border-b border-slate-100 bg-white sticky top-0 z-20 whitespace-nowrap">
                             <div className="flex items-center gap-2 relative">
                               <span>{h}</span>
-                              <button onClick={() => setOpenFilterCol(openFilterCol === h ? null : h)} className={`p-1 rounded transition-all ${activeFilters[h] ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300'}`}>{Icons.Filter}</button>
+                              <button onClick={() => handleToggleFilterCol(h)} className={`p-1 rounded transition-all ${activeFilters[h] ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300'}`}>{Icons.Filter}</button>
                               {openFilterCol === h && (
                                 <div ref={filterDropdownRef} className="absolute top-full left-0 mt-4 w-64 bg-white border rounded-2xl shadow-2xl z-50 p-4 animate-in zoom-in-95 duration-200">
                                   <input type="text" placeholder="Filter values..." className="w-full p-2 bg-slate-50 rounded-lg text-[10px] mb-2 outline-none border border-slate-100 focus:border-indigo-300" value={filterSearchQuery} onChange={(e) => setFilterSearchQuery(e.target.value)} />
-                                  <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-hide">
+                                  <div className="max-h-60 overflow-y-auto overflow-x-hidden space-y-1">
                                     {uniqueValues[h]?.filter(v => v.toLowerCase().includes(filterSearchQuery.toLowerCase())).map(v => (
-                                      <button key={v} onClick={() => toggleFilterValue(h, v)} className={`w-full text-left p-2 rounded-lg text-[10px] ${activeFilters[h]?.includes(v) ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}>{v}</button>
+                                      <button key={v} title={v} onClick={() => toggleFilterValue(h, v)} className={`w-full text-left p-2 rounded-lg text-[10px] truncate block ${activeFilters[h]?.includes(v) ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}>
+                                        {v}
+                                      </button>
                                     ))}
+                                    {uniqueValues[h]?.filter(v => v.toLowerCase().includes(filterSearchQuery.toLowerCase())).length === 0 && (
+                                      <div className="p-2 text-[10px] text-slate-400 font-medium italic">No matches found</div>
+                                    )}
                                   </div>
                                 </div>
                               )}
