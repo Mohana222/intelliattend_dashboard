@@ -3,10 +3,9 @@ import * as XLSX from 'xlsx';
 import { INITIAL_DATA } from './mockData';
 import { DataRecord, ModuleType, SalesSection, SheetCollection } from './types';
 import SummaryCard from './components/SummaryCard';
-import { getSmartOverview } from './services/geminiService';
 
 const Icons = {
-  Attendance: <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+  Attendance: <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
   Sales: <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   Folder: <svg className="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>,
   Search: <svg className="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
@@ -99,8 +98,6 @@ export default function App() {
   const [renameValue, setRenameValue] = useState("");
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
@@ -137,7 +134,6 @@ export default function App() {
     setActiveFilters({});
     setFilterText("");
     setSheetSearchQuery("");
-    setAiInsight(null);
   }, [currentCategory]);
 
   useEffect(() => {
@@ -270,19 +266,6 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleAiAnalysis = async () => {
-    if (filteredData.length === 0) return;
-    setIsAnalyzing(true);
-    try {
-      const insight = await getSmartOverview(filteredData, currentCategory);
-      setAiInsight(insight);
-    } catch (e) {
-      setAiInsight("Unable to generate analysis at this time.");
-    } finally {
-      setIsAnalyzing(false);
-    }
   };
 
   const toggleFilterValue = (column: string, value: string) => {
@@ -502,17 +485,11 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <input type="text" placeholder="Global Search..." className="pl-4 pr-4 py-2 border border-slate-100 rounded-2xl text-xs font-semibold w-64 bg-slate-50 outline-none transition-all" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
-            {filteredData.length > 0 && (
-              <button onClick={handleAiAnalysis} disabled={isAnalyzing} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50">
-                {isAnalyzing ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : Icons.AI}
-                Intelligence
-              </button>
-            )}
             <button onClick={handleLogout} className="p-2 text-slate-300 hover:text-red-500 transition-all">{Icons.Logout}</button>
           </div>
         </header>
 
-        <div className="p-8 space-y-8 flex-1">
+        <div className="p-8 space-y-6 flex-1">
           {filteredData.length === 0 && rawMergedData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-36 text-center bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
               <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-200 mb-8">{Icons.Upload}</div>
@@ -522,9 +499,9 @@ export default function App() {
           ) : (
             <>
               {activeModule !== 'ATTENDANCE' && Object.keys(totals).length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {Object.keys(totals).slice(0, 4).map(key => (
-                    <SummaryCard key={key} title={key} value={totals[key].toLocaleString()} icon={<div className="font-bold text-[9px] uppercase opacity-50">Total</div>} colorClass="bg-indigo-600 text-indigo-600" />
+                    <SummaryCard key={key} title={key} value={totals[key].toLocaleString()} icon={<div className="font-extrabold text-[8px] md:text-[9px] uppercase tracking-tighter">Total</div>} colorClass="bg-indigo-600 text-indigo-600" />
                   ))}
                 </div>
               )}
@@ -583,24 +560,6 @@ export default function App() {
             </>
           )}
         </div>
-
-        {aiInsight && (
-          <div className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-white shadow-2xl border-l border-slate-100 z-[100] p-8 flex flex-col animate-in slide-in-from-right-full duration-500">
-             <div className="flex items-center justify-between mb-8">
-               <div className="flex items-center gap-3">
-                 <div className="p-2 bg-indigo-600 text-white rounded-lg">{Icons.AI}</div>
-                 <h4 className="text-lg font-bold text-slate-900 tracking-tighter">AI Analysis Brief</h4>
-               </div>
-               <button onClick={() => setAiInsight(null)} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400">{Icons.Close}</button>
-             </div>
-             <div className="flex-1 overflow-y-auto scrollbar-hide prose prose-slate max-w-none text-slate-600 font-medium text-sm leading-relaxed whitespace-pre-wrap">
-               {aiInsight}
-             </div>
-             <div className="pt-8 border-t border-slate-50 mt-auto">
-               <button onClick={() => setAiInsight(null)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all">Acknowledge</button>
-             </div>
-          </div>
-        )}
       </main>
 
       {isModalOpen && (
