@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { INITIAL_DATA } from './mockData';
 import { DataRecord, ModuleType, SalesSection, SheetCollection } from './types';
 import SummaryCard from './components/SummaryCard';
+import { getSmartOverview } from './services/geminiService';
 
 const Icons = {
   Attendance: <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
@@ -18,12 +19,12 @@ const Icons = {
   Close: <svg className="w-3 h-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>,
   Logout: <svg className="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
   Check: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>,
-  Eye: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
-  EyeOff: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88L1 1m11 11l9 9" /></svg>,
-  Menu: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+  Menu: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>,
+  Export: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
 };
 
-const STORAGE_KEY = 'intellidata_v2_final';
+const STORAGE_KEY = 'intellidata_v2_final_data';
+const UI_STORAGE_KEY = 'intellidata_v2_final_ui';
 const VALID_EMAIL = 'admin@intellidata.com';
 const VALID_PASSWORD = 'admin123';
 
@@ -59,17 +60,31 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loginModalContent, setLoginModalContent] = useState<'about' | 'privacy' | null>(null);
 
-  const [activeModule, setActiveModule] = useState<ModuleType>('ATTENDANCE');
-  const [activeSalesSection, setActiveSalesSection] = useState<SalesSection>('Inventory-Tracking');
+  const [activeModule, setActiveModule] = useState<ModuleType>(() => {
+    const saved = localStorage.getItem(UI_STORAGE_KEY);
+    return saved ? JSON.parse(saved).activeModule || 'ATTENDANCE' : 'ATTENDANCE';
+  });
+  
+  const [activeSalesSection, setActiveSalesSection] = useState<SalesSection>(() => {
+    const saved = localStorage.getItem(UI_STORAGE_KEY);
+    return saved ? JSON.parse(saved).activeSalesSection || 'Inventory-Tracking' : 'Inventory-Tracking';
+  });
   
   const [dataStore, setDataStore] = useState<{ [key: string]: SheetCollection }>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : INITIAL_DATA;
+    if (!saved) return INITIAL_DATA;
+    try {
+      const parsed = JSON.parse(saved);
+      return { ...INITIAL_DATA, ...parsed };
+    } catch (e) {
+      return INITIAL_DATA;
+    }
   });
 
+  // Ensure selectedSheets is empty by default when entering the dashboard
   const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
+
   const [filterText, setFilterText] = useState("");
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
@@ -84,6 +99,8 @@ export default function App() {
   const [renameValue, setRenameValue] = useState("");
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
@@ -99,14 +116,28 @@ export default function App() {
     return availableSheets.filter(s => s.toLowerCase().includes(sheetSearchQuery.toLowerCase()));
   }, [availableSheets, sheetSearchQuery]);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(dataStore)); }, [dataStore]);
+  useEffect(() => { 
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataStore)); 
+    } catch (e) {
+      console.error("Storage limit exceeded", e);
+    }
+  }, [dataStore]);
+
+  useEffect(() => {
+    const uiData = { activeModule, activeSalesSection };
+    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(uiData));
+  }, [activeModule, activeSalesSection]);
+
   useEffect(() => { localStorage.setItem('isLoggedIn', String(isLoggedIn)); }, [isLoggedIn]);
 
+  // Reset selected sheets and other temporary view state when module/section changes
   useEffect(() => {
     setSelectedSheets([]);
     setActiveFilters({});
     setFilterText("");
     setSheetSearchQuery("");
+    setAiInsight(null);
   }, [currentCategory]);
 
   useEffect(() => {
@@ -126,7 +157,7 @@ export default function App() {
     if (loginForm.email === VALID_EMAIL && loginForm.password === VALID_PASSWORD) {
       setIsLoggedIn(true);
     } else {
-      setLoginError("Invalid credentials. Try admin@intellidata.com / admin123");
+      setLoginError("Invalid credentials.");
     }
   };
 
@@ -154,17 +185,11 @@ export default function App() {
         const selectedValues = activeFilters[col];
         if (!selectedValues || selectedValues.length === 0) return true;
         
-        let cellVal = item[col];
-        if (cellVal === undefined) {
-           const key = Object.keys(item).find(k => k.trim() === col);
-           if (key) cellVal = item[key];
-        }
-        
+        let cellVal = item[col] ?? item[Object.keys(item).find(k => k.trim() === col) || ""];
         let displayVal = String(cellVal ?? "").trim();
         if (typeof cellVal === 'number' && (col.toLowerCase().includes('date') || (cellVal > 35000 && cellVal < 60000))) {
           displayVal = formatExcelDate(cellVal);
         }
-        
         return selectedValues.includes(displayVal);
       });
     });
@@ -186,12 +211,7 @@ export default function App() {
     headers.forEach(h => {
       const set = new Set<string>();
       rawMergedData.forEach(row => {
-        let val = row[h];
-        if (val === undefined) {
-          const matchingKey = Object.keys(row).find(k => k.trim() === h);
-          if (matchingKey) val = row[matchingKey];
-        }
-
+        let val = row[h] ?? row[Object.keys(row).find(k => k.trim() === h) || ""];
         if (val !== undefined && val !== null && (typeof val === 'number' || String(val).trim() !== "")) {
           if (typeof val === 'number' && (h.toLowerCase().includes('date') || (val > 35000 && val < 60000))) {
             set.add(formatExcelDate(val));
@@ -227,25 +247,51 @@ export default function App() {
     return sums;
   }, [filteredData, headers]);
 
+  const handleExportCSV = () => {
+    if (filteredData.length === 0) return;
+    const csvHeaders = headers.join(',');
+    const csvRows = filteredData.map(row => {
+      return headers.map(h => {
+        let val = row[h] ?? row[Object.keys(row).find(k => k.trim() === h) || ""];
+        if (typeof val === 'number' && (h.toLowerCase().includes('date') || (val > 35000 && val < 60000))) {
+          val = formatExcelDate(val);
+        }
+        let cell = String(val ?? "").replace(/"/g, '""');
+        if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) cell = `"${cell}"`;
+        return cell;
+      }).join(',');
+    });
+    const csvContent = [csvHeaders, ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `IntelliData_Export_${currentCategory}_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleAiAnalysis = async () => {
+    if (filteredData.length === 0) return;
+    setIsAnalyzing(true);
+    try {
+      const insight = await getSmartOverview(filteredData, currentCategory);
+      setAiInsight(insight);
+    } catch (e) {
+      setAiInsight("Unable to generate analysis at this time.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const toggleFilterValue = (column: string, value: string) => {
     setActiveFilters(prev => {
       const current = prev[column] || [];
-      const next = current.includes(value) 
-        ? current.filter(v => v !== value) 
-        : [...current, value];
-      
+      const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
       const updated = { ...prev };
       if (next.length === 0) delete updated[column];
       else updated[column] = next;
-      
-      return updated;
-    });
-  };
-
-  const clearColumnFilter = (column: string) => {
-    setActiveFilters(prev => {
-      const updated = { ...prev };
-      delete updated[column];
       return updated;
     });
   };
@@ -258,11 +304,27 @@ export default function App() {
     reader.onload = (event) => {
       try {
         const workbook = XLSX.read(isExcel ? new Uint8Array(event.target?.result as ArrayBuffer) : event.target?.result as string, { type: isExcel ? 'array' : 'string', cellDates: false });
-        const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
-        const data = normalizeDataArray(rawData);
-        const name = file.name.replace(/\.[^/.]+$/, "");
-        setDataStore(prev => ({ ...prev, [currentCategory]: { ...(prev[currentCategory] || {}), [name]: data } }));
-        setSelectedSheets(prev => Array.from(new Set([...prev, name])));
+        const newSheets: SheetCollection = {};
+        const newSelected: string[] = [];
+
+        workbook.SheetNames.forEach(sheetName => {
+          const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+          const data = normalizeDataArray(rawData);
+          if (data.length > 0) {
+            let uniqueName = sheetName;
+            let counter = 1;
+            while (dataStore[currentCategory][uniqueName] || newSheets[uniqueName]) {
+              uniqueName = `${sheetName} (${counter++})`;
+            }
+            newSheets[uniqueName] = data;
+            newSelected.push(uniqueName);
+          }
+        });
+
+        if (newSelected.length > 0) {
+          setDataStore(prev => ({ ...prev, [currentCategory]: { ...(prev[currentCategory] || {}), ...newSheets } }));
+          setSelectedSheets(prev => Array.from(new Set([...prev, ...newSelected])));
+        }
       } catch (err) { alert("Parsing error."); }
     };
     if (isExcel) reader.readAsArrayBuffer(file); else reader.readAsText(file);
@@ -275,42 +337,44 @@ export default function App() {
     try {
       let url = gsheetUrl;
       const match = gsheetUrl.match(/[-\w]{25,}/);
-      if (match) url = `https://docs.google.com/spreadsheets/d/${match[0]}/export?format=csv`;
+      if (match) url = `https://docs.google.com/spreadsheets/d/${match[0]}/export?format=xlsx`;
       const res = await fetch(url);
-      const text = await res.text();
-      const workbook = XLSX.read(text, { type: 'string', cellDates: false });
-      const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
-      const data = normalizeDataArray(rawData);
-      const name = "G-Sheet " + (availableSheets.length + 1);
-      setDataStore(prev => ({ ...prev, [currentCategory]: { ...(prev[currentCategory] || {}), [name]: data } }));
-      setSelectedSheets(prev => Array.from(new Set([...prev, name])));
-      setIsModalOpen(false);
-      setGsheetUrl("");
+      if (!res.ok) throw new Error("Failed to reach server.");
+      const buffer = await res.arrayBuffer();
+      const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: false });
+      const newSheetsData: Record<string, DataRecord[]> = {};
+      const newSheetNames: string[] = [];
+
+      workbook.SheetNames.forEach(name => {
+        const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: "" });
+        const data = normalizeDataArray(rawData);
+        if (data.length > 0) {
+          let uniqueName = name;
+          let counter = 1;
+          while ((dataStore[currentCategory] && dataStore[currentCategory][uniqueName]) || newSheetsData[uniqueName]) {
+            uniqueName = `${name} (${counter++})`;
+          }
+          newSheetsData[uniqueName] = data;
+          newSheetNames.push(uniqueName);
+        }
+      });
+
+      if (newSheetNames.length === 0) {
+        alert("No valid data found.");
+      } else {
+        setDataStore(prev => ({ ...prev, [currentCategory]: { ...(prev[currentCategory] || {}), ...newSheetsData } }));
+        setSelectedSheets(prev => Array.from(new Set([...prev, ...newSheetNames])));
+        setIsModalOpen(false);
+        setGsheetUrl("");
+      }
     } catch (err) { alert("Failed to fetch Google Sheet."); }
     finally { setIsFetchingGsheet(false); }
-  };
-
-  const deleteSingleSheet = (sheetName: string, e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    
-    setSelectedSheets(prev => prev.filter(s => s !== sheetName));
-    setDataStore(prev => {
-      const nextCategoryData = { ...(prev[currentCategory] || {}) };
-      delete nextCategoryData[sheetName];
-      return { ...prev, [currentCategory]: nextCategoryData };
-    });
-  };
-
-  const startRenaming = (sheetName: string, e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    setEditingSheetKey(sheetName);
-    setRenameValue(sheetName);
   };
 
   const submitRename = (oldName: string) => {
     const newName = renameValue.trim();
     if (!newName || newName === oldName) { setEditingSheetKey(null); return; }
-    if (dataStore[currentCategory][newName]) { alert("A sheet with this name already exists."); return; }
+    if (dataStore[currentCategory][newName]) { alert("Name exists."); return; }
     setDataStore(prev => {
       const catData = { ...prev[currentCategory] };
       const content = catData[oldName];
@@ -322,101 +386,32 @@ export default function App() {
     setEditingSheetKey(null);
   };
 
-  const toggleSelectAll = () => { setSelectedSheets(prev => prev.length === availableSheets.length ? [] : [...availableSheets]); };
-
   if (!isLoggedIn) {
     return (
       <div className="h-screen w-screen flex flex-col lg:flex-row overflow-hidden relative">
-        {loginModalContent && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setLoginModalContent(null)}></div>
-            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] p-6 md:p-10 shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden">
-              <div className="flex items-center justify-between mb-8">
-                <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight">
-                  {loginModalContent === 'about' ? 'About IntelliData' : 'Security & Privacy'}
-                </h4>
-                <button onClick={() => setLoginModalContent(null)} className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400 hover:text-slate-900">
-                  {Icons.Close}
-                </button>
-              </div>
-              <div className="prose prose-slate max-w-none text-slate-600 font-medium text-sm leading-relaxed space-y-4">
-                {loginModalContent === 'about' ? (
-                  <>
-                    <p>IntelliData is an elite enterprise-grade data orchestration platform. We bridge the gap between static spreadsheet reporting and dynamic strategic intelligence.</p>
-                    <p>By leveraging advanced analytics tools, we empower decision-makers to extract nuanced trends and actionable insights from raw data in real-time.</p>
-                    <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4">
-                      <div className="flex-1 p-4 bg-indigo-50 rounded-2xl text-indigo-700 font-bold text-xs uppercase tracking-widest text-center">Democratizing Analytics</div>
-                      <div className="flex-1 p-4 bg-indigo-50 rounded-2xl text-indigo-700 font-bold text-xs uppercase tracking-widest text-center">High-Performance Stack</div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p>Your institutional data is your most valuable asset. We treat it with uncompromising security protocols.</p>
-                    <ul className="space-y-3 list-none p-0">
-                      <li className="flex gap-3">
-                        <div className="mt-1 text-emerald-500 shrink-0">{Icons.Check}</div>
-                        <span><strong>AES-256 Encryption:</strong> Data is encrypted at rest and in transit.</span>
-                      </li>
-                      <li className="flex gap-3">
-                        <div className="mt-1 text-emerald-500 shrink-0">{Icons.Check}</div>
-                        <span><strong>Stateless Processing:</strong> Spreadsheet data is never persisted on our core servers.</span>
-                      </li>
-                    </ul>
-                  </>
-                )}
-              </div>
-              <button onClick={() => setLoginModalContent(null)} className="w-full mt-10 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all text-sm uppercase tracking-widest">Close View</button>
-            </div>
-          </div>
-        )}
-
         <div className="h-64 lg:h-full lg:w-1/3 bg-gradient-to-br from-indigo-900 via-indigo-800 to-violet-900 relative flex flex-col items-center lg:items-start justify-center p-8 lg:p-16 shrink-0">
-          <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-             <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-white rounded-full blur-[100px]"></div>
-             <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] bg-indigo-400 rounded-full blur-[120px]"></div>
-          </div>
-          <div className="relative z-10 space-y-4 md:space-y-6 max-w-sm text-center lg:text-left">
+          <div className="relative z-10 space-y-4 max-w-sm text-center lg:text-left">
             <div className="flex flex-col lg:flex-row items-center gap-4">
               <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-indigo-900 shadow-xl font-extrabold text-2xl">I</div>
               <h1 className="text-3xl font-extrabold text-white tracking-tighter">IntelliData</h1>
             </div>
-            <p className="text-sm md:text-base font-semibold text-indigo-100/80 leading-snug tracking-tight">Turn your complex datasets into clear, actionable intelligence with one click.</p>
+            <p className="text-sm font-semibold text-indigo-100/80">Turn your complex datasets into clear, actionable intelligence.</p>
           </div>
         </div>
         <div className="flex-1 h-full bg-white flex flex-col items-center justify-center p-6 lg:p-12 relative overflow-y-auto">
           <div className="w-full max-w-sm space-y-8 py-8">
             <header>
-              <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">Login</h3>
-              <p className="text-slate-400 mt-1.5 text-sm font-medium">Enter your corporate credentials</p>
+              <h3 className="text-3xl font-extrabold text-slate-900">Login</h3>
+              <p className="text-slate-400 mt-1.5 text-sm font-medium">Enter corporate credentials</p>
             </header>
             <form onSubmit={handleLogin} className="space-y-6">
-              {loginError && <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs font-semibold rounded-xl animate-pulse">{loginError}</div>}
               <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Email Address</label>
-                  <input type="email" required className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 transition-all text-sm text-slate-900 placeholder:text-slate-300 font-semibold" value={loginForm.email} onChange={(e) => setLoginForm({...loginForm, email: e.target.value})} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Password</label>
-                  <div className="relative">
-                    <input type={showPassword ? "text" : "password"} required className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 transition-all text-sm text-slate-900 placeholder:text-slate-300 font-semibold pr-12" value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors p-2">{showPassword ? Icons.EyeOff : Icons.Eye}</button>
-                  </div>
-                </div>
+                <input type="email" required className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-600 transition-all text-sm font-semibold" value={loginForm.email} onChange={(e) => setLoginForm({...loginForm, email: e.target.value})} placeholder="Email" />
+                <input type="password" required className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-600 transition-all text-sm font-semibold" value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} placeholder="Password" />
               </div>
-              <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold text-base shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all transform active:scale-[0.98]">Sign In</button>
+              <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all">Sign In</button>
             </form>
           </div>
-          <footer className="w-full max-w-md mt-auto pt-8 flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-widest opacity-60">
-            <div className="flex gap-4">
-              <button onClick={() => setLoginModalContent('privacy')} className="hover:text-indigo-600 transition-colors">Privacy</button>
-              <button onClick={() => setLoginModalContent('about')} className="hover:text-indigo-600 transition-colors">About</button>
-            </div>
-            <div className="text-right flex flex-col items-end">
-              <span>© 2025 IntelliData</span>
-              <span className="text-[8px] text-slate-300">v2.1.0 PRO</span>
-            </div>
-          </footer>
         </div>
       </div>
     );
@@ -424,42 +419,29 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden relative">
-      <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv, .xlsx, .xls" className="hidden" />
+      <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv, .xlsx, .xls" className="hidden" multiple />
 
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-gray-200 flex flex-col h-full shadow-2xl lg:shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg font-bold text-xs">I</div>
+            <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">I</div>
             <span className="text-lg font-bold text-slate-900 tracking-tighter">IntelliData</span>
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-indigo-600 transition-colors">
-            {Icons.Close}
-          </button>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400">{Icons.Close}</button>
         </div>
 
         <div className="px-3 pt-4 space-y-2 shrink-0">
-          <button onClick={() => { setActiveModule('ATTENDANCE'); if(window.innerWidth < 1024) setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'ATTENDANCE' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
+          <button onClick={() => setActiveModule('ATTENDANCE')} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'ATTENDANCE' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
             {Icons.Attendance} <span className="text-xs uppercase tracking-wider">Attendance</span>
           </button>
-          
           <div className="space-y-1">
-            <button onClick={() => { setActiveModule('SALES'); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'SALES' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
+            <button onClick={() => setActiveModule('SALES')} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all ${activeModule === 'SALES' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 font-semibold' : 'hover:bg-gray-50 text-slate-500 font-medium'}`}>
               {Icons.Sales} <span className="text-xs uppercase tracking-wider">Sales Ledger</span>
             </button>
             {activeModule === 'SALES' && (
-              <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-indigo-100 pl-3 animate-in slide-in-from-top-1 duration-200">
+              <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-indigo-100 pl-3">
                 {SalesSections.map(section => (
-                  <button key={section} onClick={() => { setActiveSalesSection(section); if(window.innerWidth < 1024) setIsSidebarOpen(false); }} className={`w-full text-left p-1.5 rounded-lg text-[11px] transition-all flex items-center gap-2 ${activeSalesSection === section ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-400 hover:bg-gray-50 font-medium'}`}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-current opacity-40"></div>
+                  <button key={section} onClick={() => setActiveSalesSection(section)} className={`w-full text-left p-1.5 rounded-lg text-[11px] flex items-center gap-2 ${activeSalesSection === section ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-400 hover:bg-gray-50 font-medium'}`}>
                     {section.replace(/-/g, ' ')}
                   </button>
                 ))}
@@ -470,195 +452,127 @@ export default function App() {
 
         <div className="px-4 pt-4 pb-3 shrink-0">
           <div className="flex items-center gap-2 mb-2">
-            {availableSheets.length > 0 && <input type="checkbox" className="w-3.5 h-3.5 rounded-md border-gray-200 text-indigo-600 cursor-pointer" checked={availableSheets.length > 0 && selectedSheets.length === availableSheets.length} onChange={toggleSelectAll} />}
+            <input type="checkbox" className="w-3.5 h-3.5 rounded-md border-gray-200 text-indigo-600 cursor-pointer" checked={availableSheets.length > 0 && selectedSheets.length === availableSheets.length} onChange={() => setSelectedSheets(selectedSheets.length === availableSheets.length ? [] : [...availableSheets])} />
             <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Manage Sheets</h3>
           </div>
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none group-focus-within:text-indigo-500 transition-colors">{Icons.Search}</div>
-            <input type="text" placeholder="Find records..." className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-semibold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-200 transition-all placeholder:text-slate-300" value={sheetSearchQuery} onChange={(e) => setSheetSearchQuery(e.target.value)} />
-          </div>
+          <input type="text" placeholder="Find records..." className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-semibold outline-none" value={sheetSearchQuery} onChange={(e) => setSheetSearchQuery(e.target.value)} />
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-1 scrollbar-hide mask-fade-bottom">
           {filteredSidebarSheets.map(sheet => (
-            <div key={sheet} className="flex items-center gap-2 px-1 py-0.5 rounded-xl group hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100">
+            <div key={sheet} className="flex items-center gap-2 px-1 py-0.5 rounded-xl group hover:bg-slate-50 transition-all">
               {editingSheetKey === sheet ? (
-                <div className="flex-1 flex items-center gap-2 p-1 bg-white shadow-sm rounded-lg">
-                  <input autoFocus type="text" className="flex-1 text-[11px] border-none bg-transparent rounded px-2 py-1 outline-none font-semibold text-slate-900" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitRename(sheet); if (e.key === 'Escape') setEditingSheetKey(null); }} />
-                  <button onClick={() => submitRename(sheet)} className="text-emerald-600 hover:bg-emerald-50 p-1 rounded-lg transition-colors scale-75">{Icons.Check}</button>
-                </div>
+                <input autoFocus type="text" className="flex-1 text-[11px] border rounded px-2 py-1 outline-none font-bold" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitRename(sheet)} onBlur={() => submitRename(sheet)} />
               ) : (
                 <>
                   <div className="flex-1 flex items-center gap-2.5 p-2 cursor-pointer truncate min-w-0" onClick={() => setSelectedSheets(prev => prev.includes(sheet) ? prev.filter(s => s !== sheet) : [...prev, sheet])}>
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${selectedSheets.includes(sheet) ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-100 group-hover:border-slate-300'}`}>
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${selectedSheets.includes(sheet) ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-200'}`}>
                       {selectedSheets.includes(sheet) && <div className="text-white scale-50">{Icons.Check}</div>}
                     </div>
-                    <span className={`text-[12px] truncate tracking-tight transition-colors ${selectedSheets.includes(sheet) ? 'text-indigo-700 font-semibold' : 'text-slate-600 font-medium group-hover:text-slate-900'}`}>{sheet}</span>
+                    <span className={`text-[12px] truncate ${selectedSheets.includes(sheet) ? 'text-indigo-700 font-semibold' : 'text-slate-600 font-medium'}`}>{sheet}</span>
                   </div>
-                  <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => startRenaming(sheet, e)} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all scale-75">{Icons.Edit}</button>
-                    <button onClick={(e) => deleteSingleSheet(sheet, e)} className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all scale-75">{Icons.Trash}</button>
+                  <div className="flex items-center opacity-0 group-hover:opacity-100">
+                    <button onClick={(e) => { e.stopPropagation(); setEditingSheetKey(sheet); setRenameValue(sheet); }} className="p-1 text-slate-300 hover:text-indigo-600">{Icons.Edit}</button>
+                    <button onClick={(e) => { e.stopPropagation(); setSelectedSheets(p => p.filter(s => s !== sheet)); setDataStore(p => { const next = {...(p[currentCategory] || {})}; delete next[sheet]; return {...p, [currentCategory]: next}; }); }} className="p-1 text-slate-300 hover:text-red-500">{Icons.Trash}</button>
                   </div>
                 </>
               )}
             </div>
           ))}
-          {availableSheets.length === 0 && (
-            <div className="py-8 px-4 text-center bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-100 mt-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">System Ready<br/>Upload Dataset</p>
-            </div>
-          )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.01)] shrink-0">
-          <div className="space-y-2">
-            <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] hover:bg-slate-800 transition-all shadow-lg active:scale-[0.98]">
-              {Icons.Upload} Local File
-            </button>
-            <button onClick={() => setIsModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 border-2 border-emerald-100 text-emerald-700 bg-emerald-50/50 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] hover:bg-emerald-100/50 hover:border-emerald-300 transition-all active:scale-[0.98]">
-              {Icons.Google} G-Spreadsheet
-            </button>
-          </div>
+        <div className="p-4 border-t border-slate-100 bg-white shrink-0 space-y-2">
+          <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all">
+            {Icons.Upload} Local File
+          </button>
+          <button onClick={() => setIsModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 border-2 border-emerald-100 text-emerald-700 bg-emerald-50 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-100 transition-all">
+            {Icons.Google} G-Spreadsheet
+          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-gray-50 flex flex-col">
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 md:px-8 py-4 flex items-center justify-between shrink-0">
+      <main className="flex-1 overflow-y-auto flex flex-col relative">
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"
-            >
-              {Icons.Menu}
-            </button>
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500">{Icons.Menu}</button>
             <div>
-              <h1 className="text-lg md:text-xl font-bold text-slate-900 uppercase tracking-tighter leading-none">{currentCategory.replace(/-/g, ' ')}</h1>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">{selectedSheets.length} active ledgers</p>
+              <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tighter">{currentCategory.replace(/-/g, ' ')}</h1>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{selectedSheets.length} active ledgers</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 md:gap-4">
-            <div className="relative group hidden md:block">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-300 pointer-events-none group-focus-within:text-indigo-500 transition-colors">{Icons.Search}</div>
-              <input type="text" placeholder="Search..." className="pl-10 pr-4 py-2.5 border border-slate-100 rounded-2xl text-xs font-semibold focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-300 w-48 md:w-64 bg-slate-50 outline-none transition-all placeholder:text-slate-300" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
-            </div>
-            <button onClick={handleLogout} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Secure Logout">{Icons.Logout}</button>
+          <div className="flex items-center gap-4">
+            <input type="text" placeholder="Global Search..." className="pl-4 pr-4 py-2 border border-slate-100 rounded-2xl text-xs font-semibold w-64 bg-slate-50 outline-none transition-all" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
+            {filteredData.length > 0 && (
+              <button onClick={handleAiAnalysis} disabled={isAnalyzing} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50">
+                {isAnalyzing ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : Icons.AI}
+                Intelligence
+              </button>
+            )}
+            <button onClick={handleLogout} className="p-2 text-slate-300 hover:text-red-500 transition-all">{Icons.Logout}</button>
           </div>
         </header>
 
-        {/* Search for mobile */}
-        <div className="px-4 py-2 md:hidden">
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-300 pointer-events-none group-focus-within:text-indigo-500 transition-colors">{Icons.Search}</div>
-            <input type="text" placeholder="Global Ledger Search..." className="w-full pl-10 pr-4 py-3 border border-slate-100 rounded-2xl text-xs font-semibold focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-300 bg-white outline-none transition-all placeholder:text-slate-300" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
-          </div>
-        </div>
-
-        <div className="p-4 md:p-8 space-y-6 md:space-y-8 flex-1">
+        <div className="p-8 space-y-8 flex-1">
           {filteredData.length === 0 && rawMergedData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 md:py-36 text-center bg-white rounded-[1.5rem] md:rounded-[2.5rem] border-4 border-dashed border-slate-100 shadow-sm px-4">
-              <div className="w-16 md:w-20 h-16 md:h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-200 mb-6 md:mb-8 animate-pulse">{Icons.Upload}</div>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">System Initialization Complete</h2>
-              <p className="text-slate-400 max-w-sm mx-auto mt-3 font-semibold text-xs leading-relaxed uppercase tracking-wider">Please feed the data engine by uploading corporate records via the sidebar action console.</p>
+            <div className="flex flex-col items-center justify-center py-36 text-center bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
+              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-200 mb-8">{Icons.Upload}</div>
+              <h2 className="text-2xl font-bold text-slate-900">No Data Selected</h2>
+              <p className="text-slate-400 max-w-sm mx-auto mt-3 font-semibold text-xs uppercase tracking-widest">Select imported sheets from the sidebar to visualize results.</p>
             </div>
           ) : (
             <>
               {activeModule !== 'ATTENDANCE' && Object.keys(totals).length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {Object.keys(totals).slice(0, 4).map(key => (
-                    <SummaryCard key={key} title={`Aggregate ${key}`} value={totals[key].toLocaleString()} icon={<div className="font-bold text-[9px] tracking-tighter uppercase opacity-50">Total</div>} colorClass="bg-indigo-600 text-indigo-600" />
+                    <SummaryCard key={key} title={key} value={totals[key].toLocaleString()} icon={<div className="font-bold text-[9px] uppercase opacity-50">Total</div>} colorClass="bg-indigo-600 text-indigo-600" />
                   ))}
                 </div>
               )}
 
-              <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 shadow-2xl shadow-slate-200/30 flex flex-col min-h-[300px] md:min-h-[400px]">
-                <div className="px-6 md:px-8 py-5 md:py-6 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50/20 rounded-t-[1.5rem] md:rounded-t-[2rem] gap-2">
-                  <h3 className="font-bold text-slate-900 text-sm md:text-lg tracking-tighter uppercase">Consolidated Master Ledger</h3>
-                  <div className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-bold tracking-widest uppercase">{filteredData.length} records processed</div>
+              <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl flex flex-col min-h-[400px]">
+                <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/20 rounded-t-[2rem]">
+                  <h3 className="font-bold text-slate-900 text-lg uppercase tracking-tighter">Master Ledger</h3>
+                  <div className="flex items-center gap-3">
+                    <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-1.5 border-2 border-indigo-100 text-indigo-700 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-indigo-50 transition-all">
+                      {Icons.Export} Export Section
+                    </button>
+                    <div className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-bold uppercase tracking-widest">{filteredData.length} entries</div>
+                  </div>
                 </div>
                 
-                <div className="overflow-auto max-h-[500px] md:max-h-[600px] flex-1 scrollbar-hide">
+                <div className="overflow-auto max-h-[600px] flex-1">
                   <table className="w-full text-left border-separate border-spacing-0">
-                    <thead className="sticky top-0 z-20">
-                      <tr className="bg-white text-slate-400 text-[9px] uppercase font-bold tracking-[0.2em]">
-                        {headers.map(h => {
-                          const isActive = activeFilters[h] && activeFilters[h].length > 0;
-                          return (
-                            <th key={h} className="px-6 md:px-8 py-4 md:py-5 border-b border-slate-100 bg-white/95 backdrop-blur-sm whitespace-nowrap">
-                              <div className="flex items-center gap-2 relative">
-                                <span>{h}</span>
-                                <button 
-                                  onClick={() => setOpenFilterCol(openFilterCol === h ? null : h)} 
-                                  className={`p-1.5 rounded-lg transition-all ${isActive ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-100 text-slate-300'}`}
-                                >
-                                  {Icons.Filter}
-                                </button>
-                                
-                                {openFilterCol === h && (
-                                  <div ref={filterDropdownRef} className="absolute top-full left-0 mt-4 w-64 md:w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-80 md:max-h-96 ring-1 ring-slate-100 animate-in zoom-in-95 slide-in-from-top-2 duration-200">
-                                    <div className="p-4 border-b border-slate-50 bg-slate-50/30 space-y-3">
-                                      <div className="flex items-center justify-between">
-                                        <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Filter Column</h4>
-                                        {isActive && (
-                                          <button onClick={() => clearColumnFilter(h)} className="text-[9px] font-bold text-red-500 uppercase hover:underline">Clear All</button>
-                                        )}
-                                      </div>
-                                      <div className="relative">
-                                        <div className="absolute inset-y-0 left-3 flex items-center text-slate-300">{Icons.Search}</div>
-                                        <input 
-                                          type="text" 
-                                          placeholder="Search values..." 
-                                          autoFocus
-                                          className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-semibold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-300 transition-all"
-                                          value={filterSearchQuery}
-                                          onChange={(e) => setFilterSearchQuery(e.target.value)}
-                                        />
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="overflow-y-auto flex-1 p-2 space-y-0.5 max-h-48 md:max-h-64 scrollbar-hide">
-                                      {uniqueValues[h]
-                                        ?.filter(v => v.toLowerCase().includes(filterSearchQuery.toLowerCase()))
-                                        .map(v => {
-                                          const isSelected = activeFilters[h]?.includes(v);
-                                          return (
-                                            <button 
-                                              key={v} 
-                                              onClick={() => toggleFilterValue(h, v)} 
-                                              className={`w-full flex items-center gap-3 p-3 rounded-xl text-[10px] font-semibold transition-all ${isSelected ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'}`}
-                                            >
-                                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-200'}`}>
-                                                {isSelected && <div className="text-white scale-[0.6]">{Icons.Check}</div>}
-                                              </div>
-                                              <span className="truncate">{v}</span>
-                                            </button>
-                                          );
-                                      })}
-                                      {uniqueValues[h]?.filter(v => v.toLowerCase().includes(filterSearchQuery.toLowerCase())).length === 0 && (
-                                        <div className="p-8 text-center text-slate-300 font-bold text-[9px] uppercase tracking-widest">No matches found</div>
-                                      )}
-                                    </div>
-                                    
-                                    <div className="p-3 bg-slate-50/50 border-t border-slate-100 flex gap-2">
-                                      <button onClick={() => setOpenFilterCol(null)} className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-[9px] uppercase tracking-widest hover:bg-indigo-700 transition-colors">Apply Filters</button>
-                                    </div>
+                    <thead>
+                      <tr className="bg-white text-slate-400 text-[9px] uppercase font-bold tracking-widest">
+                        {headers.map(h => (
+                          <th key={h} className="px-8 py-5 border-b border-slate-100 bg-white sticky top-0 z-20 whitespace-nowrap">
+                            <div className="flex items-center gap-2 relative">
+                              <span>{h}</span>
+                              <button onClick={() => setOpenFilterCol(openFilterCol === h ? null : h)} className={`p-1 rounded transition-all ${activeFilters[h] ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300'}`}>{Icons.Filter}</button>
+                              {openFilterCol === h && (
+                                <div ref={filterDropdownRef} className="absolute top-full left-0 mt-4 w-64 bg-white border rounded-2xl shadow-2xl z-50 p-4 animate-in zoom-in-95 duration-200">
+                                  <input type="text" placeholder="Filter values..." className="w-full p-2 bg-slate-50 rounded-lg text-[10px] mb-2 outline-none border border-slate-100 focus:border-indigo-300" value={filterSearchQuery} onChange={(e) => setFilterSearchQuery(e.target.value)} />
+                                  <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-hide">
+                                    {uniqueValues[h]?.filter(v => v.toLowerCase().includes(filterSearchQuery.toLowerCase())).map(v => (
+                                      <button key={v} onClick={() => toggleFilterValue(h, v)} className={`w-full text-left p-2 rounded-lg text-[10px] ${activeFilters[h]?.includes(v) ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}>{v}</button>
+                                    ))}
                                   </div>
-                                )}
-                              </div>
-                            </th>
-                          );
-                        })}
+                                </div>
+                              )}
+                            </div>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
-                    <tbody className="text-[11px] md:text-[12px] divide-y divide-slate-50">
+                    <tbody className="text-[12px] divide-y divide-slate-50">
                       {filteredData.map((row, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/70 transition-colors group">
+                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                           {headers.map(h => {
-                            const val = row[h];
+                            const val = row[h] ?? row[Object.keys(row).find(k => k.trim() === h) || ""];
                             let dVal = val;
                             if (typeof val === 'number' && (h.toLowerCase().includes('date') || (val > 35000 && val < 60000))) dVal = formatExcelDate(val);
                             else if (typeof val === 'number') dVal = val.toLocaleString();
-                            return <td key={h} className="px-6 md:px-8 py-3 md:py-4 text-slate-500 font-semibold whitespace-nowrap group-hover:text-slate-900 transition-colors">{dVal ?? "-"}</td>;
+                            return <td key={h} className="px-8 py-4 text-slate-500 font-semibold whitespace-nowrap">{dVal ?? "-"}</td>;
                           })}
                         </tr>
                       ))}
@@ -669,21 +583,36 @@ export default function App() {
             </>
           )}
         </div>
+
+        {aiInsight && (
+          <div className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-white shadow-2xl border-l border-slate-100 z-[100] p-8 flex flex-col animate-in slide-in-from-right-full duration-500">
+             <div className="flex items-center justify-between mb-8">
+               <div className="flex items-center gap-3">
+                 <div className="p-2 bg-indigo-600 text-white rounded-lg">{Icons.AI}</div>
+                 <h4 className="text-lg font-bold text-slate-900 tracking-tighter">AI Analysis Brief</h4>
+               </div>
+               <button onClick={() => setAiInsight(null)} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400">{Icons.Close}</button>
+             </div>
+             <div className="flex-1 overflow-y-auto scrollbar-hide prose prose-slate max-w-none text-slate-600 font-medium text-sm leading-relaxed whitespace-pre-wrap">
+               {aiInsight}
+             </div>
+             <div className="pt-8 border-t border-slate-50 mt-auto">
+               <button onClick={() => setAiInsight(null)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all">Acknowledge</button>
+             </div>
+          </div>
+        )}
       </main>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-lg p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-md p-6 md:p-10 shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="flex justify-between items-start mb-6 md:mb-8">
-              <h3 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tighter">API Link</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-200 hover:text-slate-900 transition-colors">{Icons.Close}</button>
-            </div>
-            <p className="text-xs text-slate-400 mb-6 md:mb-8 font-semibold uppercase tracking-widest leading-relaxed">Establish a secure tunnel to your cloud-hosted Google Spreadsheet.</p>
-            <input type="text" placeholder="https://docs.google.com/spreadsheets/..." className="w-full p-4 md:p-5 bg-slate-50 border border-slate-100 rounded-2xl mb-6 md:mb-8 text-xs outline-none focus:ring-8 focus:ring-emerald-500/5 focus:border-emerald-300 font-semibold tracking-tight" value={gsheetUrl} onChange={(e) => setGsheetUrl(e.target.value)} />
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="py-4 text-slate-400 font-bold uppercase tracking-[0.2em] text-[9px] order-2 sm:order-1 sm:flex-1">Abort</button>
-              <button onClick={handleImportGoogleSheet} disabled={isFetchingGsheet || !gsheetUrl} className="px-6 py-4 bg-emerald-600 text-white font-bold uppercase tracking-[0.2em] text-[9px] rounded-xl shadow-2xl shadow-emerald-100 disabled:opacity-50 active:scale-[0.98] transition-all order-1 sm:order-2 sm:flex-[2]">
-                {isFetchingGsheet ? 'Processing...' : 'Establish Connection'}
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl">
+            <h3 className="text-3xl font-bold text-slate-900 mb-8 tracking-tighter">Import Workbook</h3>
+            <p className="text-xs text-slate-400 mb-8 font-semibold uppercase tracking-widest leading-relaxed">Connect to a public Google Spreadsheet to aggregate all available sheets.</p>
+            <input type="text" placeholder="https://docs.google.com/spreadsheets/..." className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl mb-8 text-xs font-semibold outline-none focus:border-indigo-300 transition-all" value={gsheetUrl} onChange={(e) => setGsheetUrl(e.target.value)} />
+            <div className="flex gap-4">
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-400 font-bold uppercase text-[9px] hover:text-slate-600">Cancel</button>
+              <button onClick={handleImportGoogleSheet} disabled={isFetchingGsheet || !gsheetUrl} className="flex-[2] py-4 bg-emerald-600 text-white font-bold uppercase text-[9px] rounded-xl shadow-lg shadow-emerald-100 disabled:opacity-50">
+                {isFetchingGsheet ? 'Processing...' : 'Synchronize'}
               </button>
             </div>
           </div>
